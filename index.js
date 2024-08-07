@@ -19,7 +19,8 @@ async function fetchGameDataAndSave() {
 
         await client.connect();
 
-        await truncateGameInfoTable(client);
+        //uncomment next line if you want to drop the data in your database
+        //await truncateGameInfoTable(client);
 
         const response = await axios.get(apiEndpoint, {
             headers: {
