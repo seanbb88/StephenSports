@@ -10,7 +10,6 @@ const dbConfig = {
 };
 
 const year = '2023';
-const conference = 'MAC';
 const apiKey = 'EoLeorvh0YUDcFqt7KmceJDbA0J5p8H4VBj/936S4GxdnWOM5d1oPgfL1WJoxbxc';
 const apiGamesEndpoint = `https://api.collegefootballdata.com/games?year=${year}&seasonType=regular`;
 const apiTeamsEndpoint = `https://api.collegefootballdata.com/teams?conference=`;
