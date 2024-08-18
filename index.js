@@ -2,12 +2,12 @@ const axios = require('axios');
 const sql = require('mssql');
 
 const dbConfig = {
-    user: 'sa',                          // Your SQL Server username
-    password: 'powerdigitspassword',      // Your SQL Server password
-    server: 'localhost\\MSSQLSERVER01',   // Your SQL Server instance
-    database: 'PowerDigits',              // Your SQL Server database
+    user: 'sa',
+    password: 'powerdigitspassword',
+    server: 'localhost\\MSSQLSERVER01',
+    database: 'PowerDigits',
     options: {
-        encrypt: false,                   // Set to true if using Azure SQL
+        encrypt: false,
         enableArithAbort: true
     }
 };
