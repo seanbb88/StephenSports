@@ -5,6 +5,7 @@ const dbConfig = {
     user: 'sa',
     password: 'powerdigitspassword',
     server: 'localhost\\MSSQLSERVER01',
+    port: 5432,
     database: 'PowerDigits',
     options: {
         encrypt: false,
