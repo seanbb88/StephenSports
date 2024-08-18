@@ -1,12 +1,15 @@
 const axios = require('axios');
-const { Client } = require('pg');
+const sql = require('mssql');
 
 const dbConfig = {
-    user: 'postgres',
-    host: 'localhost',
-    database: 'sports',
-    password: 'password',
-    port: 5432,
+    user: 'sa',                          // Your SQL Server username
+    password: 'powerdigitspassword',      // Your SQL Server password
+    server: 'localhost\\MSSQLSERVER01',   // Your SQL Server instance
+    database: 'PowerDigits',              // Your SQL Server database
+    options: {
+        encrypt: false,                   // Set to true if using Azure SQL
+        enableArithAbort: true
+    }
 };
 
 const year = '2023';
@@ -16,28 +19,25 @@ const apiTeamsEndpoint = `https://api.collegefootballdata.com/teams?conference=`
 const apiConferencesEndpoint = `https://api.collegefootballdata.com/conferences`;
 const apiCalendarEndpoint = `https://api.collegefootballdata.com/calendar?year=${year}`;
 
-
 async function truncateTables() {
     try {
-        const client = new Client(dbConfig);
-        await client.connect();
-
-        await client.query('TRUNCATE TABLE games');
-        await client.query('TRUNCATE TABLE teams');
-        await client.query('TRUNCATE TABLE locations');
-        await client.query('TRUNCATE TABLE conferences');
-        await client.query('TRUNCATE TABLE calendar');
+        await sql.connect(dbConfig);
+        await sql.query`TRUNCATE TABLE games`;
+        await sql.query`TRUNCATE TABLE teams`;
+        await sql.query`TRUNCATE TABLE locations`;
+        await sql.query`TRUNCATE TABLE conferences`;
+        await sql.query`TRUNCATE TABLE calendar`;
         console.log('Tables truncated');
     } catch (error) {
         console.error('Error truncating tables:', error);
+    } finally {
+        await sql.close();
     }
 }
 
-
 async function createTables() {
     try {
-        const client = new Client(dbConfig);
-        await client.connect();
+        await sql.connect(dbConfig);
 
         const createConferencesTable = `
             CREATE TABLE IF NOT EXISTS conferences (
@@ -63,8 +63,8 @@ async function createTables() {
                 elevation FLOAT,
                 capacity INT,
                 year_constructed INT,
-                grass BOOLEAN,
-                dome BOOLEAN
+                grass BIT,
+                dome BIT
             );
         `;
 
@@ -94,8 +94,8 @@ async function createTables() {
                 season INT,
                 week INT,
                 seasonType VARCHAR(50),
-                firstGameStart TIMESTAMP,
-                lastGameStart TIMESTAMP
+                firstGameStart DATETIME,
+                lastGameStart DATETIME
             );
         `;
 
@@ -105,11 +105,11 @@ async function createTables() {
                 season INT,
                 week INT,
                 season_type VARCHAR(50),
-                start_time_tbd BOOLEAN,
-                start_date TIMESTAMP,
-                completed BOOLEAN,
-                neutral_site BOOLEAN,
-                conference_game BOOLEAN,
+                start_time_tbd BIT,
+                start_date DATETIME,
+                completed BIT,
+                neutral_site BIT,
+                conference_game BIT,
                 attendance INT,
                 venue_id INT,
                 venue VARCHAR(255),
@@ -133,24 +133,23 @@ async function createTables() {
             );
         `;
 
-        await client.query(createConferencesTable);
-        await client.query(createLocationsTable);
-        await client.query(createTeamsTable);
-        await client.query(createCalendarTable);
-        await client.query(createGamesTable);
+        await sql.query(createConferencesTable);
+        await sql.query(createLocationsTable);
+        await sql.query(createTeamsTable);
+        await sql.query(createCalendarTable);
+        await sql.query(createGamesTable);
 
         console.log('Tables created successfully');
-        await client.end();
     } catch (error) {
         console.error('Error creating tables:', error);
+    } finally {
+        await sql.close();
     }
 }
 
 async function fetchGameDataAndSave() {
-    const client = new Client(dbConfig);
     try {
-
-        await client.connect();
+        await sql.connect(dbConfig);
 
         const response = await axios.get(apiGamesEndpoint, {
             headers: {
@@ -169,64 +168,60 @@ async function fetchGameDataAndSave() {
             home_postgame_elo, away_id, away_team, away_conference, away_division, 
             away_points, away_post_win_prob, away_pregame_elo, away_postgame_elo, excitement_index
         ) VALUES (
-            $1, $2, $3, $4, $5, $6, 
-            $7, $8, $9, $10, 
-            $11, $12, $13, $14, $15, 
-            $16, $17, $18, 
-            $19, $20, $21, 
-            $22, $23, $24, 
-            $25, $26, $27, $28, 
-            $29
+            @id, @season, @week, @season_type, @start_date, @start_time_tbd, 
+            @completed, @neutral_site, @conference_game, @attendance, 
+            @venue_id, @venue, @home_id, @home_team, @home_conference, 
+            @home_division, @home_points, @home_post_win_prob, @home_pregame_elo, 
+            @home_postgame_elo, @away_id, @away_team, @away_conference, @away_division, 
+            @away_points, @away_post_win_prob, @away_pregame_elo, @away_postgame_elo, @excitement_index
         );
     `;
 
         for (const item of data) {
-            await client.query(insertQuery, [
-                item.id,
-                item.season,
-                item.week,
-                item.season_type,
-                item.start_date,
-                item.start_time_tbd,
-                item.completed,
-                item.neutral_site,
-                item.conference_game,
-                item.attendance,
-                item.venue_id,
-                item.venue,
-                item.home_id,
-                item.home_team,
-                item.home_conference,
-                item.home_division,
-                item.home_points,
-                item.home_post_win_prob,
-                item.home_pregame_elo,
-                item.home_postgame_elo,
-                item.away_id,
-                item.away_team,
-                item.away_conference,
-                item.away_division,
-                item.away_points,
-                item.away_post_win_prob,
-                item.away_pregame_elo,
-                item.away_postgame_elo,
-                item.excitement_index
-            ]);
+            await sql.query(insertQuery, {
+                id: item.id,
+                season: item.season,
+                week: item.week,
+                season_type: item.season_type,
+                start_date: item.start_date,
+                start_time_tbd: item.start_time_tbd,
+                completed: item.completed,
+                neutral_site: item.neutral_site,
+                conference_game: item.conference_game,
+                attendance: item.attendance,
+                venue_id: item.venue_id,
+                venue: item.venue,
+                home_id: item.home_id,
+                home_team: item.home_team,
+                home_conference: item.home_conference,
+                home_division: item.home_division,
+                home_points: item.home_points,
+                home_post_win_prob: item.home_post_win_prob,
+                home_pregame_elo: item.home_pregame_elo,
+                home_postgame_elo: item.home_postgame_elo,
+                away_id: item.away_id,
+                away_team: item.away_team,
+                away_conference: item.away_conference,
+                away_division: item.away_division,
+                away_points: item.away_points,
+                away_post_win_prob: item.away_post_win_prob,
+                away_pregame_elo: item.away_pregame_elo,
+                away_postgame_elo: item.away_postgame_elo,
+                excitement_index: item.excitement_index
+            });
         }
 
         console.log('Game data saved');
     } catch (error) {
         console.error('Error saving game data:', error);
     } finally {
-        await client.end();
+        await sql.close();
     }
 }
 
 async function fetchConferenceDataAndSave() {
-    const client = new Client(dbConfig);
     try {
-
-        await client.connect();
+        await sql.connect(dbConfig);
 
         const response = await axios.get(apiConferencesEndpoint, {
             headers: {
@@ -240,34 +235,31 @@ async function fetchConferenceDataAndSave() {
             INSERT INTO conferences (
                 id, name, short_name, abbreviation, classification
             ) VALUES (
-                $1, $2, $3, $4, $5
+                @id, @name, @short_name, @abbreviation, @classification
             );
         `;
 
         for (const item of data) {
-            await client.query(insertQuery, [
-                item.id,
-                item.name,
-                item.short_name,
-                item.abbreviation,
-                item.classification
-            ]);
-
+            await sql.query(insertQuery, {
+                id: item.id,
+                name: item.name,
+                short_name: item.short_name,
+                abbreviation: item.abbreviation,
+                classification: item.classification
+            });
         }
 
         console.log('Conference data saved');
     } catch (error) {
         console.error('Error saving conference data:', error);
     } finally {
-        await client.end();
+        await sql.close();
     }
 }
 
 async function fetchCalendarDataAndSave() {
-    const client = new Client(dbConfig);
     try {
-
-        await client.connect();
+        await sql.connect(dbConfig);
 
         const response = await axios.get(apiCalendarEndpoint, {
             headers: {
@@ -281,34 +273,33 @@ async function fetchCalendarDataAndSave() {
             INSERT INTO calendar (
                 season, week, seasonType, firstGameStart, lastGameStart
             ) VALUES (
-                $1, $2, $3, $4, $5
+                @season, @week, @seasonType, @firstGameStart, @lastGameStart
             );
         `;
 
         for (const item of data) {
-            await client.query(insertQuery, [
-                item.season,
-                item.week,
-                item.seasonType,
-                item.firstGameStart,
-                item.lastGameStart
-            ]);
-
+            await sql.query(insertQuery, {
+                season: item.season,
+                week: item.week,
+                seasonType: item.seasonType,
+                firstGameStart: item.firstGameStart,
+                lastGameStart: item.lastGameStart
+            });
         }
 
         console.log('Calendar data saved');
     } catch (error) {
         console.error('Error saving calendar data:', error);
     } finally {
-        await client.end();
+        await sql.close();
     }
 }
 
 async function fetchTeamDataAndSave(conf) {
-    const client = new Client(dbConfig);
     try {
+        await sql.connect(dbConfig);
+
         const getUrl = apiTeamsEndpoint + conf;
-        await client.connect();
         const response = await axios.get(getUrl, {
             headers: {
                 'accept': 'application/json',
@@ -323,14 +314,13 @@ async function fetchTeamDataAndSave(conf) {
                 alt_name_3, classification, conference, division, color, 
                 alt_color, logo_light, logo_dark, twitter, location_id
             ) VALUES (
-                $1, $2, $3, $4, $5, $6, 
-                $7, $8, $9, $10, 
-                $11, $12, $13, $14, $15, $16
+                @id, @school, @mascot, @abbreviation, @alt_name_1, @alt_name_2,
+                @alt_name_3, @classification, @conference, @division, @color, 
+                @alt_color, @logo_light, @logo_dark, @twitter, @location_id
             );
         `;
 
         for (const item of data) {
-
             const location = {
                 venue_id: item.location.venue_id,
                 name: item.location.name,
@@ -348,115 +338,110 @@ async function fetchTeamDataAndSave(conf) {
                 dome: item.location.dome
             };
 
-            await saveLocationData(location, client);
+            await saveLocationData(location);
 
             const logoDark = item.logos[1];
             const logoLight = item.logos[0];
 
-            await client.query(insertQuery, [
-                item.id,
-                item.school,
-                item.mascot,
-                item.abbreviation,
-                item.alt_name_1,
-                item.alt_name_2,
-                item.alt_name_3,
-                item.classification,
-                item.conference,
-                item.division,
-                item.color,
-                item.alt_color,
-                logoLight,
-                logoDark,
-                item.twitter,
-                item.location.venue_id
-            ]);
+            await sql.query(insertQuery, {
+                id: item.id,
+                school: item.school,
+                mascot: item.mascot,
+                abbreviation: item.abbreviation,
+                alt_name_1: item.alt_name_1,
+                alt_name_2: item.alt_name_2,
+                alt_name_3: item.alt_name_3,
+                classification: item.classification,
+                conference: item.conference,
+                division: item.division,
+                color: item.color,
+                alt_color: item.alt_color,
+                logo_light: logoLight,
+                logo_dark: logoDark,
+                twitter: item.twitter,
+                location_id: item.location.venue_id
+            });
         }
 
-        console.log('Team conference team data saved for: ', conf);
-
+        console.log('Team data saved for conference:', conf);
     } catch (error) {
         console.error('Error saving team data:', error);
     } finally {
-        await client.end();
+        await sql.close();
     }
 }
 
-async function saveLocationData(location, client) {
+async function saveLocationData(location) {
     const insertLocationQuery = `
         INSERT INTO locations (
             venue_id, name, city, state, zip, country_code, timezone, 
             latitude, longitude, elevation, capacity, year_constructed, 
             grass, dome
         ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+            @venue_id, @name, @city, @state, @zip, @country_code, @timezone, 
+            @latitude, @longitude, @elevation, @capacity, @year_constructed, 
+            @grass, @dome
         );
     `;
 
     try {
-        await client.query(insertLocationQuery, [
-            location.venue_id,
-            location.name,
-            location.city,
-            location.state,
-            location.zip,
-            location.country_code,
-            location.timezone,
-            location.latitude,
-            location.longitude,
-            location.elevation,
-            location.capacity,
-            location.year_constructed,
-            location.grass,
-            location.dome
-        ]);
-        console.log('Location data saved for: ', location.name);
+        await sql.query(insertLocationQuery, {
+            venue_id: location.venue_id,
+            name: location.name,
+            city: location.city,
+            state: location.state,
+            zip: location.zip,
+            country_code: location.country_code,
+            timezone: location.timezone,
+            latitude: location.latitude,
+            longitude: location.longitude,
+            elevation: location.elevation,
+            capacity: location.capacity,
+            year_constructed: location.year_constructed,
+            grass: location.grass,
+            dome: location.dome
+        });
+        console.log('Location data saved for:', location.name);
     } catch (error) {
         console.error('Error saving location data:', error);
     }
 }
 
-
 async function GetAllOfTheTeams() {
-    const client = new Client(dbConfig);
-
     try {
-        await client.connect();
+        await sql.connect(dbConfig);
 
-        const res = await client.query('SELECT abbreviation FROM conferences WHERE abbreviation IS NOT NULL');
-        const abbreviations = res.rows.map(row => row.abbreviation);
+        const result = await sql.query`SELECT abbreviation FROM conferences WHERE abbreviation IS NOT NULL`;
+        const abbreviations = result.recordset.map(row => row.abbreviation);
 
         for (const team of abbreviations) {
             await fetchTeamDataAndSave(team);
         }
-
     } catch (error) {
         console.error('Error fetching team abbreviations:', error);
     } finally {
-        await client.end();
+        await sql.close();
     }
 }
 
-
 async function RunProgram() {
-    //STEP ONE: truncate tables (COMMENT THIS OUT IF U DONT HAVE TABLES LOCALLY YET)
-    await truncateTables()
+    // STEP ONE: truncate tables (COMMENT THIS OUT IF YOU DON'T HAVE TABLES LOCALLY YET)
+    //await truncateTables();
 
-    //STEP TWO: create the tables
+    // STEP TWO: create the tables
     await createTables();
 
-    //STEP THREE: Conference Data 
+    // STEP THREE: Conference Data
     await fetchConferenceDataAndSave();
 
-    //STEP FOUR: Calendar Data 
+    // STEP FOUR: Calendar Data
     await fetchCalendarDataAndSave();
 
-    //STEP FIVE: Game Data
+    // STEP FIVE: Game Data
     await fetchGameDataAndSave();
 
-    //Final STEP: Looping through all of the conferences and getting the teams
+    // Final STEP: Looping through all of the conferences and getting the teams
     GetAllOfTheTeams().then(() => {
-
         const done = `
         |||||||   |||||||||  ||||||   ||||||||
         ||    ||  |||    ||  ||  ||  ||    
@@ -468,11 +453,6 @@ async function RunProgram() {
         console.log(done);
         process.exit(0);
     });
-
 }
-
-
-
-
 
 RunProgram();
