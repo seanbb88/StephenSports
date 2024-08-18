@@ -2,14 +2,14 @@ const axios = require('axios');
 const sql = require('mssql');
 
 const dbConfig = {
-    user: 'sa',
-    password: 'powerdigitspassword',
+    // user: 'sa',
+    // password: 'powerdigitspassword',
     server: 'localhost\\MSSQLSERVER01',
-    port: 5432,
     database: 'PowerDigits',
     options: {
         encrypt: false,
-        enableArithAbort: true
+        enableArithAbort: true,
+        trustedConnection: true
     }
 };
 
